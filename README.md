@@ -30,24 +30,24 @@ import matplotlib.pyplot as plt
 import os
 
 # 데이터 로드 및 전처리
-# MNIST 데이터셋을 불러오고, 이미지들을 신경망에 맞는 형태로 변환합니다.
+# MNIST 데이터셋을 불러오고, 신경망에 입력하기 위해 이미지 데이터를 1차원으로 변환합니다.
 (x_train, _), (_, _) = mnist.load_data()
-x_train = x_train.reshape(-1, 28 * 28).astype('float32') / 255
+x_train = x_train.reshape(-1, 28 * 28).astype('float32') / 255  # 28x28 이미지를 784차원 벡터로 변환
 
 # 생성자 모델 정의
-# 100차원의 랜덤 노이즈를 받아 28x28 크기의 이미지를 생성합니다.
+# 100차원의 랜덤 노이즈로부터 28x28 크기의 이미지를 생성하는 신경망입니다.
 generator = Sequential([
-    Dense(256, activation='relu', input_shape=(100,)),
-    Dense(784, activation='sigmoid'),
-    Reshape((28, 28))
+    Dense(256, activation='relu', input_shape=(100,)),  # 첫 번째 Dense 층, 256개의 노드를 가짐
+    Dense(784, activation='sigmoid'),  # 출력 층, 이미지 픽셀값은 0과 1 사이
+    Reshape((28, 28))  # 784차원의 출력을 28x28 이미지로 변환
 ])
 
 # 판별자 모델 정의
-# 생성된 이미지 또는 실제 이미지를 받아, 그것이 실제인지 가짜인지를 판별합니다.
+# 생성된 이미지 또는 실제 이미지를 받아, 그것이 진짜인지 가짜인지를 판별하는 신경망입니다.
 discriminator = Sequential([
-    Flatten(input_shape=(28, 28)),
-    Dense(256, activation='relu'),
-    Dense(1, activation='sigmoid')
+    Flatten(input_shape=(28, 28)),  # 입력 이미지를 1차원 벡터로 평탄화
+    Dense(256, activation='relu'),  # 은닉층, 256개의 노드를 가짐
+    Dense(1, activation='sigmoid')  # 출력층, 하나의 노드로 진짜(1) 또는 가짜(0) 판별
 ])
 
 # 판별자 모델 컴파일
@@ -55,42 +55,50 @@ discriminator.compile(loss='binary_crossentropy', optimizer='adam')
 discriminator.trainable = False
 
 # GAN 모델 정의 및 컴파일
-# 생성자와 판별자를 결합하여 GAN 모델을 구성합니다.
+# 생성자와 판별자를 결합하여 GAN 모델을 구성합니다. 이 모델은 생성자를 훈련시키는 데 사용됩니다.
 gan = Sequential([generator, discriminator])
 gan.compile(loss='binary_crossentropy', optimizer='adam')
 
 # 이미지 저장을 위한 폴더 생성
+# 생성된 이미지들을 저장할 폴더를 생성합니다.
 if not os.path.exists('gan_images'):
     os.makedirs('gan_images')
 
 # 훈련 과정
+# 지정된 에포크 동안 모델을 훈련시킵니다.
 epochs = 10000
 batch_size = 32
 
 for epoch in range(epochs):
     # 임의의 노이즈에서 이미지 생성
+    # 생성자에 입력될 랜덤 노이즈를 생성합니다.
     noise = np.random.normal(0, 1, (batch_size, 100))
     generated_images = generator.predict(noise)
 
     # 실제 이미지와 결합
+    # 실제 MNIST 데이터셋에서 무작위로 선택된 이미지와 생성된 이미지를 합칩니다.
     real_images = x_train[np.random.randint(0, x_train.shape[0], batch_size)]
     x = np.concatenate([real_images, generated_images.reshape(batch_size, 28, 28)], axis=0)
 
     # 레이블 생성
+    # 실제 이미지에는 1, 생성된 이미지에는 0을 레이블로 부여합니다.
     y = np.zeros(2 * batch_size)
     y[:batch_size] = 1
 
     # 판별자 훈련
+    # 판별자를 훈련시켜 실제 이미지와 생성된 이미지를 구별하도록 합니다.
     discriminator.trainable = True
     discriminator.train_on_batch(x, y)
 
     # 생성자 훈련
+    # 생성자를 훈련시키기 위해 가짜 레이블(1)을 사용합니다.
     noise = np.random.normal(0, 1, (batch_size, 100))
     y2 = np.ones(batch_size)
     discriminator.trainable = False
     gan.train_on_batch(noise, y2)
 
     # 에포크마다 이미지 저장
+    # 특정 간격마다 생성된 이미지를 저장합니다.
     if epoch % 100 == 0:
         noise = np.random.normal(0, 1, (10, 100))
         generated_images = generator.predict(noise)
